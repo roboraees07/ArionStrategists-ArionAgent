@@ -1,0 +1,7 @@
+strategy,class_name,status,score_mean,shortfall_mean,elapsed_s
+baseline,ArionAgentBaseline,PASS,0.9735017833812343,51.37975435131011,10.4
+optimize,ArionAgentOptimize,PASS,0.9735017833812343,51.37975435131011,11.0
+search,ArionAgentSearch,PASS,0.9735017833812343,51.37975435131011,9.9
+game,ArionAgentGame,PASS,0.992596395009716,56.03991849729544,9.7
+hybrid,ArionAgentHybrid,PASS,0.9292764030547348,42.5638905381004,9.9
+default(game),ArionAgent,PASS,0.992596395009716,56.03991849729544,9.6

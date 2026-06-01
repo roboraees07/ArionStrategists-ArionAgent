@@ -1,0 +1,8 @@
+# SCML runtime (ANAC submission)
+negmas==0.15.4
+scml==0.8.2
+
+# local benchmarks in helpers/runner.py
+numpy>=1.24
+pandas>=2.0
+tabulate>=0.9

@@ -1,0 +1,6 @@
+strategy,score_mean,shortfall_mean,storage_mean,notes
+baseline,1.042,216.7,42.6,2 seeds x 1 config x 10 steps — original logic
+optimize,0.994,225.0,36.5,lexicographic subset optimization
+search,1.016,219.6,40.5,2 seeds run; 1.166 on single-seed confirm — SELECTED DEFAULT
+game,0.987,277.8,36.1,Nash reservation counters + baseline bundles
+hybrid,0.954,180.3,29.2,search + game + urgent salvage — lower score locally
