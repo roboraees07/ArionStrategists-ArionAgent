@@ -377,4 +377,3 @@ Inline citations use **[[n]](#ref-n)** and match `references.bib` in the LaTeX r
 - Full LaTeX report (with BibTeX bibliography): `../ArionAgent_Report_Complete/` — compile `main.tex` with pdfLaTeX + BibTeX.
 - This README summarizes methods and results; formal citations match `references.bib` in the report folder.
 - `ArionAgent` extends `SyncRandomStdAgent` from SCML [[4]](#ref-4) / NegMAS [[3]](#ref-3); no third-party competition agent source was used.
-- LLM-assisted writing and implementation guidance are disclosed in report §9; all code was reviewed by the authors.
