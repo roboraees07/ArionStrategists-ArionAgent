@@ -2,10 +2,10 @@
 
 **Course:** CS 451 / CS 551 Introduction to AI (Spring 2026)  
 **Team:** Muhammad Raees Azam (S050683), Mehak Arshid (S050293)  
-**Competition:** [ANAC 2026 SCML](https://anac.cs.brown.edu/scml) (Standard track) [[1]](#ref-1), [[2]](#ref-2)  
+**Competition:** [ANAC 2026 SCML](https://anac.cs.brown.edu/scml), Standard track [[1]](#ref-1), [[2]](#ref-2)  
 **Repository:** [github.com/roboraees07/ArionStrategists-ArionAgent](https://github.com/roboraees07/ArionStrategists-ArionAgent)
 
-`ArionAgent` extends [`SyncRandomStdAgent`](https://scml.readthedocs.io/) [[4]](#ref-4) with partner memory, utility-aware bundles [[6]](#ref-6), and five selectable strategies. Negotiation hooks use the SCML / NegMAS stack [[3]](#ref-3), [[4]](#ref-4). The **submitted default** is **`game`** (best pooled score on our verification tournaments).
+We built `ArionAgent` on top of SCML’s [`SyncRandomStdAgent`](https://scml.readthedocs.io/) [[4]](#ref-4). It keeps the parent’s production and distribution logic, then adds partner price memory, utility-aware bundle selection [[6]](#ref-6), and five switchable strategies. Negotiation runs through the usual SCML / NegMAS hooks [[3]](#ref-3), [[4]](#ref-4). For submission we ship **`game`** as the default—it held up best across our verification tournaments.
 
 ---
 
@@ -36,13 +36,13 @@ flowchart TB
     CA --> DF
 ```
 
-Base layer: SCML `SyncRandomStdAgent` [[4]](#ref-4). Nash-style counters in the `game` / `hybrid` strategies [[5]](#ref-5).
+The bottom half of the diagram is stock SCML [[4]](#ref-4). Everything in the `ArionAgent` box is ours. When the strategy is `game` or `hybrid`, counter-offers use Nash-style reservation prices [[5]](#ref-5) instead of the baseline memory anchor.
 
 ---
 
 ## Negotiation pipeline (`counter_all`)
 
-Every strategy uses the same four-phase response order:
+Regardless of strategy, `counter_all` walks the same four phases:
 
 ```mermaid
 flowchart LR
@@ -54,18 +54,20 @@ flowchart LR
     A --> B --> C --> D
 ```
 
-| Phase | When | Action |
-|-------|------|--------|
-| **A** | Today’s offers | Accept subset from bundle selector if utility ≥ floor [[6]](#ref-6) and quantity covers need |
-| **B** | Urgent or late step | Accept cheapest remaining input / best sales to fill gaps |
-| **C** | Good single offers | Accept by `good2buy` / `good2sell` [[4]](#ref-4) and future needs |
-| **D** | Remaining partners | Counter with anchor price (game/hybrid) [[5]](#ref-5) then inherited SyncRandom logic [[4]](#ref-4) |
+| Phase | When | What happens |
+|-------|------|----------------|
+| **A** | Today’s offers | Take a bundle from the strategy’s selector if utility clears the floor [[6]](#ref-6) and quantity covers today’s need |
+| **B** | Urgent or late in the step | Salvage: cheap remaining input, strong sales offers |
+| **C** | Standalone good deals | Accept via `good2buy` / `good2sell` [[4]](#ref-4) when they fit future needs |
+| **D** | Everyone still open | Counter with an anchor (`game`/`hybrid` use Nash pricing [[5]](#ref-5)), then fall back to SyncRandom [[4]](#ref-4) |
+
+Phases A–C try to lock in value early; Phase D is where we haggle on whatever’s left.
 
 ---
 
 ## Shared equations
 
-All notation in plain text (full LaTeX in project report). Utility notation follows SCML [[4]](#ref-4) and Russell & Norvig [[6]](#ref-6).
+Symbols below are plain text so they render cleanly on GitHub. The full write-up with LaTeX is in our project report. Utility notation matches SCML [[4]](#ref-4) and the framing in Russell & Norvig [[6]](#ref-6).
 
 | Symbol | Meaning |
 |--------|---------|
@@ -126,7 +128,7 @@ Require:  q <= N + floor(0.15 * L)
 
 ### Nash-style reservation price (game & hybrid)
 
-Inspired by Nash bargaining / reservation-price ideas [[5]](#ref-5). On price range [m_n, m_x] with midpoint `mid = (m_n + m_x) / 2`:
+Counter-pricing borrows from Nash bargaining and reservation-price ideas [[5]](#ref-5). Given a partner’s range [m_n, m_x] and `mid = (m_n + m_x) / 2`:
 
 ```
 t_blend = min(1, max(0, tau)) ^ 1.4
@@ -140,11 +142,13 @@ Sell side:
   pi_res = max(pi_res, partner_best_sell - 1)  # if history exists
 ```
 
-Then clamp `pi_res` to [m_n, m_x] and use in Phase D counter-offers.
+Clamp `pi_res` to [m_n, m_x], then use it in Phase D.
 
 ---
 
-## Strategy methods (how each works)
+## Strategies
+
+Five variants share the pipeline above; they differ in how they pick today’s bundle and how they set counter-prices.
 
 | Key | Class | Bundle selection | Pricing / salvage |
 |-----|-------|------------------|-------------------|
@@ -174,48 +178,35 @@ flowchart TD
     BA --> OUT
 ```
 
-### 1. Baseline
+### Baseline
 
-- Ranks partner offers by unit price (cheap input, expensive output).
-- Tries all subsets up to `MAX_SUBSET=8` partners; keeps best utility above floor.
-- Falls back to greedy accumulation until need is met.
-- **Role:** Reference implementation; also used inside `game` for bundles.
+Partners are ranked by unit price—cheap inputs in, expensive outputs out. The agent tries every subset up to `MAX_SUBSET=8` partners and keeps the best bundle above the utility floor [[6]](#ref-6). If that fails, it greedily piles on offers until need is met. We treat this as the reference path; `game` reuses it for bundle choice.
 
-### 2. Optimize
+### Optimize
 
-- Same search space as baseline but picks the subset with highest sigma (utility, then need coverage, then quantity gap).
-- Falls back to baseline if no valid subset.
-- **Idea:** Explicit multi-criteria optimization instead of raw utility only.
+Same search space as baseline, but the winner is the subset with the highest sigma: utility first, then whether need is covered, then how close quantity is to target. If nothing qualifies, it drops back to baseline. The point is to optimize several criteria at once instead of staring only at raw utility.
 
-### 3. Search
+### Search
 
-- Beam search: start with empty bundle, add partners in price order, keep top 6 partial bundles by sigma.
-- Falls back to baseline if beam ends empty.
-- **Idea:** Explore multiple bundle compositions without full 2^n enumeration.
+Beam search with width 6: start empty, add partners in price order, keep the six best partial bundles by sigma. Empty beam → baseline. You get more bundle diversity than greedy without enumerating all 2^n subsets.
 
-### 4. Game (submission default)
+### Game (what we submit)
 
-- **Bundles:** baseline (stable, lower variance).
-- **Counters:** `_anchor_price_game` uses Nash reservation [[5]](#ref-5) + partner memory.
-- **Why default:** Best mean score on verification runs (see below).
+Bundles come from baseline (stable, lower variance). Counters go through `_anchor_price_game`, which blends Nash reservation [[5]](#ref-5) with partner memory. That combination topped our verification runs and the full scoreboard, so it’s `DEFAULT_STRATEGY`.
 
-### 5. Hybrid
+### Hybrid
 
-- **Bundles:** search.
-- **Counters:** game anchors.
-- **Salvage:** also when urgent (not only late).
-- **Trade-off:** Strong on some boards, higher runtime and variance.
+Search for bundles, game-style anchors for counters, and salvage triggers when the step is urgent—not only when time is almost gone. It can spike on favorable worlds but costs more runtime and swings harder run-to-run.
 
 ---
 
 ## Benchmark results
 
-Opponents in all tournaments: `SyncRandomStdAgent`, `GreedyStdAgent` (SCML built-ins [[2]](#ref-2), [[4]](#ref-4)).  
-Metric: **mean normalized score** (higher is better) per SCML league rules [[2]](#ref-2).
+We ran local tournaments against SCML’s `SyncRandomStdAgent` and `GreedyStdAgent` [[2]](#ref-2), [[4]](#ref-4). Scoring is the league’s **mean normalized score**—higher is better [[2]](#ref-2).
 
-### Full scoreboard (consolidated)
+### Full scoreboard
 
-From `arion_strategists/experiments/full_scoreboard.csv`:
+`arion_strategists/experiments/full_scoreboard.csv`:
 
 | Rank | Agent | Mean score | Std | Shortfall | Storage |
 |------|-------|------------|-----|-----------|---------|
@@ -228,8 +219,6 @@ From `arion_strategists/experiments/full_scoreboard.csv`:
 | 7 | ArionAgentSearch | 0.934 | 0.226 | 165.8 | 61.6 |
 | 8 | GreedyStdAgent | 0.737 | 0.280 | 195.2 | 158.2 |
 
-**Score comparison (full scoreboard):**
-
 ```
 Game     ████████████████████  1.066
 Hybrid   ███████████████████   1.048
@@ -241,9 +230,11 @@ Search   ███████████████       0.934
 Greedy   ███████████           0.737
 ```
 
-### Four verification tournaments
+`game` leads clearly; every Arion variant still beats Greedy by a comfortable gap.
 
-From `arion_strategists/experiments/verification_runs.csv`:
+### Verification tournaments (4 runs)
+
+`arion_strategists/experiments/verification_runs.csv` — different step counts and world seeds each time:
 
 | Run | Steps | Worlds | Winner | Game | Search | Hybrid | SyncRand | Greedy |
 |-----|-------|--------|--------|------|--------|--------|----------|--------|
@@ -252,7 +243,7 @@ From `arion_strategists/experiments/verification_runs.csv`:
 | 3 | 15 | 6 | Search | 1.064 | **1.083** | 1.000 | 1.020 | 0.744 |
 | 4 | 12 | 6 | Game | **1.066** | 0.935 | 1.048 | 1.020 | 0.737 |
 
-**Pooled averages (4 runs):**
+**Pooled over four runs:**
 
 | Agent | Pooled mean | Rank-1 wins |
 |-------|-------------|-------------|
@@ -269,9 +260,11 @@ pie title Verification wins (4 tournaments)
     "Search (1)" : 1
 ```
 
-### Smoke tests (quick correctness)
+`game` wins three of four; `search` takes the other. Hybrid looks strong on the big board but doesn’t pool as well here. `optimize` edges baseline slightly without catching `game`.
 
-Short worlds (5 steps, 1 config) — from `smoke_test_results.csv`:
+### Smoke tests
+
+Short runs (5 steps, one world config) from `smoke_test_results.csv`—sanity checks, not leaderboard material:
 
 | Strategy | Score | Shortfall | Time (s) | Status |
 |----------|-------|-----------|----------|--------|
@@ -282,15 +275,7 @@ Short worlds (5 steps, 1 config) — from `smoke_test_results.csv`:
 | search | 0.974 | 51.4 | 9.9 | PASS |
 | hybrid | 0.929 | 42.6 | 9.9 | PASS |
 
-Smoke scores are **not** directly comparable to full tournaments (fewer steps/seeds); they confirm all strategies run without errors.
-
-### Conclusion from benchmarks
-
-1. **`game`** — best pooled verification mean (1.0652) and top of full scoreboard → **chosen as `DEFAULT_STRATEGY`**.
-2. **`hybrid`** — second on full board; lower verification pooled mean; useful experimentally.
-3. **`search`** — wins one verification run but higher shortfall on full board.
-4. **`optimize`** — slight gain over baseline on full board but below game.
-5. All Arion variants beat **`GreedyStdAgent`** by a wide margin.
+All strategies pass; absolute scores are lower only because the worlds are tiny.
 
 ---
 
@@ -314,7 +299,7 @@ ArionStrategists/
 
 ## Setup & run
 
-**Recommended:** course venv at `scml_resources\std_local\.venv`
+Use the course venv at `scml_resources\std_local\.venv` if you have it:
 
 ```powershell
 cd "c:\OZU-MS\Introduction to AI\Project\ArionStrategists"
@@ -323,28 +308,28 @@ pip install -r requirements.txt
 .\scripts\run_smoke.ps1
 ```
 
-**First run:** scipy/scml import can take **1–2 minutes** on Windows — wait; do not Ctrl+C.
+On Windows the first scipy/scml import can sit for **1–2 minutes**. Let it finish—killing the process mid-import just wastes time.
 
-**Benchmarks:**
+To re-run strategy comparison or pack a submission zip:
 
 ```powershell
 python -m arion_strategists.helpers.runner compare-strategies 15 2
 python -m arion_strategists.helpers.preflight
 ```
 
-Override strategy: `$env:ARION_STRATEGY="search"`
+Try another strategy without editing code: `$env:ARION_STRATEGY="search"`
 
 ---
 
 ## ANAC submission
 
-Submit via the [ANAC 2026](https://anac.cs.brown.edu/anac) portal [[1]](#ref-1) for the SCML Standard track [[2]](#ref-2). Preflight builds `ArionStrategists_ArionAgent.zip` (agent module + minimal helpers only).
+Upload through the [ANAC 2026](https://anac.cs.brown.edu/anac) portal [[1]](#ref-1), SCML Standard track [[2]](#ref-2). Running `preflight` produces `ArionStrategists_ArionAgent.zip`—agent module plus the minimal helpers ANAC expects, nothing else.
 
 ---
 
 ## References
 
-Inline citations use **[[n]](#ref-n)** and match `references.bib` in the LaTeX report.
+Citations in the text use **[[n]](#ref-n)** and line up with `references.bib` in the LaTeX report.
 
 <a id="ref-1"></a>
 
@@ -374,6 +359,6 @@ Inline citations use **[[n]](#ref-n)** and match `references.bib` in the LaTeX r
 
 ## Report & acknowledgments
 
-- Full LaTeX report (with BibTeX bibliography): `../ArionAgent_Report_Complete/` — compile `main.tex` with pdfLaTeX + BibTeX.
-- This README summarizes methods and results; formal citations match `references.bib` in the report folder.
-- `ArionAgent` extends `SyncRandomStdAgent` from SCML [[4]](#ref-4) / NegMAS [[3]](#ref-3); no third-party competition agent source was used.
+The full paper—methods, pseudocode, every table, BibTeX sources—is in `../ArionAgent_Report_Complete/` (`main.tex`, pdfLaTeX + BibTeX).
+
+`ArionAgent` extends `SyncRandomStdAgent` from SCML [[4]](#ref-4) and NegMAS [[3]](#ref-3). We did not copy any third-party competition agent code. LLM help with drafting and implementation is documented in report §9; we reviewed and tested everything ourselves.
