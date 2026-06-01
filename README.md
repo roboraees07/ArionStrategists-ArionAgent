@@ -2,10 +2,10 @@
 
 **Course:** CS 451 / CS 551 Introduction to AI (Spring 2026)  
 **Team:** Muhammad Raees Azam (S050683), Mehak Arshid (S050293)  
-**Competition:** [ANAC 2026 SCML](https://anac.cs.brown.edu/scml) (Standard track)  
+**Competition:** [ANAC 2026 SCML](https://anac.cs.brown.edu/scml) (Standard track) [[1]](#ref-1), [[2]](#ref-2)  
 **Repository:** [github.com/roboraees07/ArionStrategists-ArionAgent](https://github.com/roboraees07/ArionStrategists-ArionAgent)
 
-`ArionAgent` extends [`SyncRandomStdAgent`](https://scml.readthedocs.io/) with partner memory, utility-aware bundles, and five selectable strategies. The **submitted default** is **`game`** (best pooled score on our verification tournaments).
+`ArionAgent` extends [`SyncRandomStdAgent`](https://scml.readthedocs.io/) [[4]](#ref-4) with partner memory, utility-aware bundles [[6]](#ref-6), and five selectable strategies. Negotiation hooks use the SCML / NegMAS stack [[3]](#ref-3), [[4]](#ref-4). The **submitted default** is **`game`** (best pooled score on our verification tournaments).
 
 ---
 
@@ -36,6 +36,8 @@ flowchart TB
     CA --> DF
 ```
 
+Base layer: SCML `SyncRandomStdAgent` [[4]](#ref-4). Nash-style counters in the `game` / `hybrid` strategies [[5]](#ref-5).
+
 ---
 
 ## Negotiation pipeline (`counter_all`)
@@ -54,16 +56,16 @@ flowchart LR
 
 | Phase | When | Action |
 |-------|------|--------|
-| **A** | Today’s offers | Accept subset from bundle selector if utility ≥ floor and quantity covers need |
+| **A** | Today’s offers | Accept subset from bundle selector if utility ≥ floor [[6]](#ref-6) and quantity covers need |
 | **B** | Urgent or late step | Accept cheapest remaining input / best sales to fill gaps |
-| **C** | Good single offers | Accept by `good2buy` / `good2sell` and future needs |
-| **D** | Remaining partners | Counter with anchor price (game/hybrid) then inherited SyncRandom logic |
+| **C** | Good single offers | Accept by `good2buy` / `good2sell` [[4]](#ref-4) and future needs |
+| **D** | Remaining partners | Counter with anchor price (game/hybrid) [[5]](#ref-5) then inherited SyncRandom logic [[4]](#ref-4) |
 
 ---
 
 ## Shared equations
 
-All notation in plain text (full LaTeX in project report).
+All notation in plain text (full LaTeX in project report). Utility notation follows SCML [[4]](#ref-4) and Russell & Norvig [[6]](#ref-6).
 
 | Symbol | Meaning |
 |--------|---------|
@@ -71,7 +73,7 @@ All notation in plain text (full LaTeX in project report).
 | t | Current simulation step |
 | tau | Relative time in [0, 1] |
 | alpha_t | Production anchor: 0.42 normal, 0.58 urgent |
-| U_max | Maximum utility (`ufun.max_utility`) |
+| U_max | Maximum utility (`ufun.max_utility`) [[4]](#ref-4), [[6]](#ref-6) |
 | N_in | Today input (buy) quantity still needed |
 | N_out | Today output (sell) quantity still needed |
 | S_in | Inventory + secured input this step |
@@ -105,7 +107,7 @@ if urgent:           f = 0.12
 else:                f = 0.22
 if tau > 0.78:       f = min(f, 0.08)
 
-Accept bundle B only if:    U(B) >= f * U_max
+Accept bundle B only if:    U(B) >= f * U_max    # utility floor [6]
 ```
 
 ### Lexicographic subset score (optimize & search)
@@ -124,7 +126,7 @@ Require:  q <= N + floor(0.15 * L)
 
 ### Nash-style reservation price (game & hybrid)
 
-On price range [m_n, m_x] with midpoint `mid = (m_n + m_x) / 2`:
+Inspired by Nash bargaining / reservation-price ideas [[5]](#ref-5). On price range [m_n, m_x] with midpoint `mid = (m_n + m_x) / 2`:
 
 ```
 t_blend = min(1, max(0, tau)) ^ 1.4
@@ -149,8 +151,8 @@ Then clamp `pi_res` to [m_n, m_x] and use in Phase D counter-offers.
 | `baseline` | `ArionAgentBaseline` | Exhaustive subsets (≤8 partners) or greedy by price | Memory-based anchor |
 | `optimize` | `ArionAgentOptimize` | Maximize sigma over subsets | Memory-based anchor |
 | `search` | `ArionAgentSearch` | Beam search (width 6) over ranked offers | Memory-based anchor |
-| **`game`** | **`ArionAgentGame`** | Same as baseline | **Nash reservation counters** |
-| `hybrid` | `ArionAgentHybrid` | Beam search | Nash counters + urgent salvage |
+| **`game`** | **`ArionAgentGame`** | Same as baseline | **Nash reservation counters** [[5]](#ref-5) |
+| `hybrid` | `ArionAgentHybrid` | Beam search | Nash counters [[5]](#ref-5) + urgent salvage |
 
 ```mermaid
 flowchart TD
@@ -194,7 +196,7 @@ flowchart TD
 ### 4. Game (submission default)
 
 - **Bundles:** baseline (stable, lower variance).
-- **Counters:** `_anchor_price_game` uses Nash reservation + partner memory.
+- **Counters:** `_anchor_price_game` uses Nash reservation [[5]](#ref-5) + partner memory.
 - **Why default:** Best mean score on verification runs (see below).
 
 ### 5. Hybrid
@@ -208,8 +210,8 @@ flowchart TD
 
 ## Benchmark results
 
-Opponents in all tournaments: `SyncRandomStdAgent`, `GreedyStdAgent`.  
-Metric: **mean normalized score** (higher is better).
+Opponents in all tournaments: `SyncRandomStdAgent`, `GreedyStdAgent` (SCML built-ins [[2]](#ref-2), [[4]](#ref-4)).  
+Metric: **mean normalized score** (higher is better) per SCML league rules [[2]](#ref-2).
 
 ### Full scoreboard (consolidated)
 
@@ -336,23 +338,37 @@ Override strategy: `$env:ARION_STRATEGY="search"`
 
 ## ANAC submission
 
-Preflight builds `ArionStrategists_ArionAgent.zip` (agent module + minimal helpers only).
+Submit via the [ANAC 2026](https://anac.cs.brown.edu/anac) portal [[1]](#ref-1) for the SCML Standard track [[2]](#ref-2). Preflight builds `ArionStrategists_ArionAgent.zip` (agent module + minimal helpers only).
 
 ---
 
 ## References
 
-1. ANAC Organizers. *Automated Negotiating Agents Competition (ANAC) 2026.* https://anac.cs.brown.edu/anac (accessed May 2026).
+Inline citations use **[[n]](#ref-n)** and match `references.bib` in the LaTeX report.
 
-2. ANAC Organizers. *Supply Chain Management League (SCML).* https://anac.cs.brown.edu/scml (accessed May 2026).
+<a id="ref-1"></a>
 
-3. Yasser, T. *NegMAS: Negotiation Multi-Agent System.* https://github.com/yasserfarouk/negmas (2024).
+**[1]** ANAC Organizers. *Automated Negotiating Agents Competition (ANAC) 2026.* https://anac.cs.brown.edu/anac (accessed May 2026).
 
-4. SCML Developers. *SCML documentation and world configurations.* https://scml.readthedocs.io/ (2024). Base class: [`SyncRandomStdAgent`](https://scml.readthedocs.io/).
+<a id="ref-2"></a>
 
-5. Osborne, M. J. *An Introduction to Game Theory.* Oxford University Press, 2004. (Nash bargaining and reservation-price ideas used in the `game` / `hybrid` strategies.)
+**[2]** ANAC Organizers. *Supply Chain Management League (SCML).* https://anac.cs.brown.edu/scml (accessed May 2026).
 
-6. Russell, S., and Norvig, P. *Artificial Intelligence: A Modern Approach*, 4th ed. Pearson, 2020. (Utility-based decision making and multi-agent negotiation framing.)
+<a id="ref-3"></a>
+
+**[3]** Yasser, T. *NegMAS: Negotiation Multi-Agent System.* https://github.com/yasserfarouk/negmas (2024).
+
+<a id="ref-4"></a>
+
+**[4]** SCML Developers. *SCML documentation and world configurations.* https://scml.readthedocs.io/ (2024). Base class: [`SyncRandomStdAgent`](https://scml.readthedocs.io/).
+
+<a id="ref-5"></a>
+
+**[5]** Osborne, M. J. *An Introduction to Game Theory.* Oxford University Press, 2004.
+
+<a id="ref-6"></a>
+
+**[6]** Russell, S., and Norvig, P. *Artificial Intelligence: A Modern Approach*, 4th ed. Pearson, 2020.
 
 ---
 
@@ -360,5 +376,5 @@ Preflight builds `ArionStrategists_ArionAgent.zip` (agent module + minimal helpe
 
 - Full LaTeX report (with BibTeX bibliography): `../ArionAgent_Report_Complete/` — compile `main.tex` with pdfLaTeX + BibTeX.
 - This README summarizes methods and results; formal citations match `references.bib` in the report folder.
-- `ArionAgent` extends `SyncRandomStdAgent` from SCML / NegMAS; no third-party competition agent source was used.
+- `ArionAgent` extends `SyncRandomStdAgent` from SCML [[4]](#ref-4) / NegMAS [[3]](#ref-3); no third-party competition agent source was used.
 - LLM-assisted writing and implementation guidance are disclosed in report §9; all code was reviewed by the authors.
