@@ -340,9 +340,25 @@ Preflight builds `ArionStrategists_ArionAgent.zip` (agent module + minimal helpe
 
 ---
 
+## References
+
+1. ANAC Organizers. *Automated Negotiating Agents Competition (ANAC) 2026.* https://anac.cs.brown.edu/anac (accessed May 2026).
+
+2. ANAC Organizers. *Supply Chain Management League (SCML).* https://anac.cs.brown.edu/scml (accessed May 2026).
+
+3. Yasser, T. *NegMAS: Negotiation Multi-Agent System.* https://github.com/yasserfarouk/negmas (2024).
+
+4. SCML Developers. *SCML documentation and world configurations.* https://scml.readthedocs.io/ (2024). Base class: [`SyncRandomStdAgent`](https://scml.readthedocs.io/).
+
+5. Osborne, M. J. *An Introduction to Game Theory.* Oxford University Press, 2004. (Nash bargaining and reservation-price ideas used in the `game` / `hybrid` strategies.)
+
+6. Russell, S., and Norvig, P. *Artificial Intelligence: A Modern Approach*, 4th ed. Pearson, 2020. (Utility-based decision making and multi-agent negotiation framing.)
+
+---
+
 ## Report & acknowledgments
 
-- Full LaTeX report: `../ArionAgent_Report_Complete/` (equations, pseudocode, all tables).
-- Base planner: `SyncRandomStdAgent` (SCML / NegMAS).
-- LLM use disclosed in report §9; code reviewed by authors.
-- No third-party competition agent source used.
+- Full LaTeX report (with BibTeX bibliography): `../ArionAgent_Report_Complete/` — compile `main.tex` with pdfLaTeX + BibTeX.
+- This README summarizes methods and results; formal citations match `references.bib` in the report folder.
+- `ArionAgent` extends `SyncRandomStdAgent` from SCML / NegMAS; no third-party competition agent source was used.
+- LLM-assisted writing and implementation guidance are disclosed in report §9; all code was reviewed by the authors.
