@@ -63,51 +63,82 @@ flowchart LR
 
 ## Shared equations
 
-Let $L$ = production lines, $\tau$ = relative simulation time, $U_{\max}$ = max utility.
+All notation in plain text (full LaTeX in project report).
+
+| Symbol | Meaning |
+|--------|---------|
+| L | Production lines (`n_lines`) |
+| t | Current simulation step |
+| tau | Relative time in [0, 1] |
+| alpha_t | Production anchor: 0.42 normal, 0.58 urgent |
+| U_max | Maximum utility (`ufun.max_utility`) |
+| N_in | Today input (buy) quantity still needed |
+| N_out | Today output (sell) quantity still needed |
+| S_in | Inventory + secured input this step |
+| I_t | Current input inventory |
+| f | Utility floor fraction |
+| sigma(B) | Lexicographic score tuple for bundle B |
+| pi_res | Reservation unit price for counter-offer |
 
 ### Today needs
 
-Input (buy) need for current step $t$:
+**Input (buy) need:**
 
-$$
-N^{\mathrm{in}}_t = \max\bigl(0,\; \lfloor L\alpha_t \rfloor - S^{\mathrm{in}}_t,\; \texttt{needed\_supplies}\bigr)
-$$
+```
+N_in(t) = max( 0,
+               floor(L * alpha_t) - S_in(t),
+               needed_supplies )
+```
 
-Sales (sell) need:
+**Sales (sell) need:**
 
-$$
-N^{\mathrm{out}}_t = \max\bigl(0,\; \min(L,\lfloor L\alpha_t \rfloor + I_t) - \texttt{sales}_t,\; \texttt{needed\_sales}\bigr)
-$$
-
-Production anchor $\alpha_t \in \{0.42,\; 0.58\}$ (normal vs urgent).
+```
+N_out(t) = max( 0,
+                min(L, floor(L * alpha_t) + I_t) - sales(t),
+                needed_sales )
+```
 
 ### Utility floor
 
-Fraction $f \in \{0.22,\; 0.12,\; 0.08\}$ (normal / urgent / late). Accept only if:
+```
+if urgent:           f = 0.12
+else:                f = 0.22
+if tau > 0.78:       f = min(f, 0.08)
 
-$$
-U(\mathcal{B}) \geq f \cdot U_{\max}
-$$
+Accept bundle B only if:    U(B) >= f * U_max
+```
 
 ### Lexicographic subset score (optimize & search)
 
-For bundle $\mathcal{B}$ with total quantity $q$ and target need $N$:
+For bundle B with total quantity q and target need N:
 
-$$
-\sigma(\mathcal{B}) = \bigl(U,\; \mathbb{1}[q \geq N],\; -|q-N|,\; -q\bigr)
-$$
+```
+sigma(B) = ( U(B),
+             1 if q >= N else 0,
+             -|q - N|,
+             -q )
 
-Maximize $\sigma$ lexicographically; require $q \leq N + \lfloor 0.15\,L \rfloor$.
+Pick largest sigma lexicographically.
+Require:  q <= N + floor(0.15 * L)
+```
 
 ### Nash-style reservation price (game & hybrid)
 
-On price interval $[m_n, m_x]$, midpoint and time blend:
+On price range [m_n, m_x] with midpoint `mid = (m_n + m_x) / 2`:
 
-$$
-\pi_{\mathrm{res}} = m_n + (\tfrac{m_n+m_x}{2} - m_n)\cdot(0.25 + 0.65\,\tau^{1.4}) \quad \text{(buy side sketch)}
-$$
+```
+t_blend = min(1, max(0, tau)) ^ 1.4
 
-Clamp with partner memory (best buy/sell seen this step).
+Buy side:
+  pi_res = m_n + (mid - m_n) * (0.25 + 0.65 * t_blend)
+  pi_res = min(pi_res, partner_best_buy + 1)   # if history exists
+
+Sell side:
+  pi_res = m_x - (m_x - mid) * (0.25 + 0.65 * t_blend)
+  pi_res = max(pi_res, partner_best_sell - 1)  # if history exists
+```
+
+Then clamp `pi_res` to [m_n, m_x] and use in Phase D counter-offers.
 
 ---
 
@@ -116,7 +147,7 @@ Clamp with partner memory (best buy/sell seen this step).
 | Key | Class | Bundle selection | Pricing / salvage |
 |-----|-------|------------------|-------------------|
 | `baseline` | `ArionAgentBaseline` | Exhaustive subsets (≤8 partners) or greedy by price | Memory-based anchor |
-| `optimize` | `ArionAgentOptimize` | Maximize $\sigma$ over subsets | Memory-based anchor |
+| `optimize` | `ArionAgentOptimize` | Maximize sigma over subsets | Memory-based anchor |
 | `search` | `ArionAgentSearch` | Beam search (width 6) over ranked offers | Memory-based anchor |
 | **`game`** | **`ArionAgentGame`** | Same as baseline | **Nash reservation counters** |
 | `hybrid` | `ArionAgentHybrid` | Beam search | Nash counters + urgent salvage |
@@ -150,15 +181,15 @@ flowchart TD
 
 ### 2. Optimize
 
-- Same search space as baseline but picks the subset with highest $\sigma$ (utility, then need coverage, then quantity gap).
+- Same search space as baseline but picks the subset with highest sigma (utility, then need coverage, then quantity gap).
 - Falls back to baseline if no valid subset.
 - **Idea:** Explicit multi-criteria optimization instead of raw utility only.
 
 ### 3. Search
 
-- Beam search: start with empty bundle, add partners in price order, keep top 6 partial bundles by $\sigma$.
+- Beam search: start with empty bundle, add partners in price order, keep top 6 partial bundles by sigma.
 - Falls back to baseline if beam ends empty.
-- **Idea:** Explore multiple bundle compositions without full $2^n$ enumeration.
+- **Idea:** Explore multiple bundle compositions without full 2^n enumeration.
 
 ### 4. Game (submission default)
 
